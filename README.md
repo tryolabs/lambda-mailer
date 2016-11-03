@@ -47,6 +47,6 @@ With [httpie](https://httpie.org/), invoke the endpoint0 with the `message.json`
 
 ## License
 
-Copyright (c) 2016 Tryolabs.
+Copyright (c) 2016 [Tryolabs](https://tryolabs.com).
 
 Released under the MIT License (See LICENSE).
