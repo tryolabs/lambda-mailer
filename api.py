@@ -11,7 +11,7 @@ DESTINATION_EMAIL = os.environ['DESTINATION_EMAIL']
 
 
 app = Flask(__name__)
-app.debug = True
+app.debug = False
 
 ses = boto3.client('ses')
 
