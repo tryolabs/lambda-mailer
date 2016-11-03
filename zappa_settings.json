@@ -1,0 +1,32 @@
+{
+    "dev": {
+        "app_function": "api.app",
+        "s3_bucket": "zappa-emailsender-dev-lambda",
+        "attach_policy": "zappa-policy.json",
+        "method_header_types": [
+            "Content-Type",
+            "Access-Control-Allow-Origin",
+            "Access-Control-Allow-Headers",
+            "Access-Control-Allow-Methods"
+        ],
+        "environment_variables": {
+            "FROM_EMAIL": "hello@tryolabs.com",
+            "DESTINATION_EMAIL": "alan@tryolabs.com"
+        }
+    },
+    "prod": {
+        "app_function": "api.app",
+        "s3_bucket": "zappa-emailsender-prod-lambda",
+        "attach_policy": "zappa-policy.json",
+        "method_header_types": [
+            "Content-Type",
+            "Access-Control-Allow-Origin",
+            "Access-Control-Allow-Headers",
+            "Access-Control-Allow-Methods"
+        ],
+        "environment_variables": {
+            "FROM_EMAIL": "hello@tryolabs.com",
+            "DESTINATION_EMAIL": "hello@tryolabs.com"
+        }
+    }
+}
