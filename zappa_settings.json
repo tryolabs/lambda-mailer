@@ -1,8 +1,9 @@
 {
     "dev": {
         "app_function": "api.app",
+        "aws_region": "us-west-2",
         "s3_bucket": "zappa-emailsender-dev-lambda",
-        "attach_policy": "zappa-policy.json",
+        "attach_policy": "lambda-mailer-policy-dev.json",
         "method_header_types": [
             "Content-Type",
             "Access-Control-Allow-Origin",
@@ -16,8 +17,9 @@
     },
     "prod": {
         "app_function": "api.app",
+        "aws_region": "us-west-2",
         "s3_bucket": "zappa-emailsender-prod-lambda",
-        "attach_policy": "zappa-policy.json",
+        "attach_policy": "lambda-mailer-policy-prod.json",
         "method_header_types": [
             "Content-Type",
             "Access-Control-Allow-Origin",
