@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "lambda-mailer"
+version = "0.1.0"
+description = "API to send emails using AWS lambda."
+license = "MIT"
+authors = ["Alan Descoins <alan@tryolabs.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+boto3 = "^1.17.101"
+zappa = "^0.53.0"
+Flask = "1"
+
+[tool.poetry.dev-dependencies]
+ipdb = "^0.13.9"
+black = "^21.6b0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
