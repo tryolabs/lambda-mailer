@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Lambda Mailer - Serverless contact form email sender via SES
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+  FromEmail:
+    Type: String
+    Description: Verified SES sender email address
+  DestinationEmail:
+    Type: String
+    Description: Email address to receive contact form submissions
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: python3.12
+    MemorySize: 256
+    Architectures:
+      - arm64
+
+Resources:
+  MailerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handler.handler
+      CodeUri: .
+      Environment:
+        Variables:
+          FROM_EMAIL: !Ref FromEmail
+          DESTINATION_EMAIL: !Ref DestinationEmail
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+              Resource: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/*"
+      Events:
+        PostRoot:
+          Type: Api
+          Properties:
+            Path: /
+            Method: POST
+        OptionsRoot:
+          Type: Api
+          Properties:
+            Path: /
+            Method: OPTIONS
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  FunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt MailerFunction.Arn

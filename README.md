@@ -1,49 +1,91 @@
-# Tryolabs Lambda mailer
+# Tryolabs Lambda Mailer
 
-Uses [Zappa](https://github.com/Miserlou/Zappa) to deploy a serverless endpoint that receives a JSON and sends an email to a destination address. Made to support contact forms in our static website.
+Serverless contact form endpoint deployed to AWS Lambda via [AWS SAM](https://aws.amazon.com/serverless/sam/). Receives a JSON payload and sends an email using Amazon SES.
+
+Built with [FastAPI](https://fastapi.tiangolo.com/) + [Mangum](https://mangum.fastapiexpert.com/) (ASGI→Lambda adapter).
+
+## Prerequisites
+
+- [uv](https://docs.astral.sh/uv/) (Python package manager)
+- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
+- Valid AWS credentials configured (`~/.aws/credentials` or environment variables)
+- A verified SES sender email address in your AWS account
 
 ## Setup
 
-_Before you begin, make sure you have a valid AWS account and your [AWS credentials file](https://blogs.aws.amazon.com/security/post/Tx3D6U6WSFGOK2H/A-New-and-Standardized-Way-to-Manage-Credentials-in-the-AWS-SDKs) is properly installed._
+Install dependencies:
 
-Make sure you are in a virtualenv, and run:
-
-```
-$ pip install -r requirements.txt
-$ zappa deploy dev
+```bash
+uv sync --all-extras
 ```
 
-To redeploy:
+## Development
 
-    $ zappa update dev
+Run the API locally (requires SAM CLI):
 
-To deploy the production version:
+```bash
+sam local start-api --env-vars env.json
+```
 
-    $ zappa deploy prod
+Or run directly with uvicorn:
 
+```bash
+uv run uvicorn api:app --reload
+```
+
+### Linting & formatting
+
+```bash
+uv run ruff check .
+uv run ruff format .
+```
+
+### Type checking
+
+```bash
+uv run mypy api.py handler.py
+```
+
+### Testing
+
+```bash
+uv run pytest
+```
+
+## Deployment
+
+Deploy to the **dev** environment:
+
+```bash
+sam build
+sam deploy --config-env dev
+```
+
+Deploy to **production**:
+
+```bash
+sam build
+sam deploy --config-env prod
+```
+
+Deploy configuration (stack name, region, email addresses) is defined in `samconfig.toml`.
 
 ### Environment variables
-In the `zappa_settings.json` file, you can edit the environment variables for `dev` and `prod`:
 
-```javascript
-{
-    "dev": {
-        ...
-        "environment_variables": {
-            "FROM_EMAIL": "alan@tryolabs.com",
-            "DESTINATION_EMAIL": "alan@tryolabs.com"
-        }
-    },
-    ...
-}
+Configured as SAM parameters in `samconfig.toml`:
+
+| Variable | Description |
+|---|---|
+| `FromEmail` | Verified SES sender email address |
+| `DestinationEmail` | Email address to receive form submissions |
+
+## Manual testing
+
+With [httpie](https://httpie.org/), invoke the endpoint with the `message.json` test file:
+
+```bash
+http POST <endpoint-url> < message.json
 ```
-
-## Testing
-
-With [httpie](https://httpie.org/), invoke the endpoint0 with the `message.json` test file as payload:
-
-    $ http <endpoint> < message.json
-
 
 ## License
 

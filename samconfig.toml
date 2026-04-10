@@ -1,0 +1,27 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "lambda-mailer"
+resolve_s3 = true
+s3_prefix = "lambda-mailer"
+region = "us-west-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+
+[dev.deploy.parameters]
+stack_name = "lambda-mailer-v2-dev"
+region = "us-west-2"
+resolve_s3 = true
+s3_prefix = "lambda-mailer"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Stage=dev FromEmail=hello@tryolabs.com DestinationEmail=german@tryolabs.com"
+
+[prod.deploy.parameters]
+stack_name = "lambda-mailer-v2-prod"
+region = "us-west-2"
+resolve_s3 = true
+s3_prefix = "lambda-mailer"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Stage=prod FromEmail=hello@tryolabs.com DestinationEmail=hello@tryolabs.com"

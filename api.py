@@ -1,126 +1,101 @@
-import boto3
 import os
 import re
 
+import boto3
 from botocore.exceptions import ClientError
-from flask import Flask, request, jsonify
-
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, field_validator
 
 FROM_EMAIL = os.environ["FROM_EMAIL"]
 DESTINATION_EMAIL = os.environ["DESTINATION_EMAIL"]
 
+app = FastAPI(title="Lambda Mailer")
 
-app = Flask(__name__)
-app.debug = False
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["OPTIONS", "POST"],
+    allow_headers=["Content-Type", "Authorization"],
+)
 
-ses = boto3.client("ses")
+AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", os.environ.get("AWS_REGION", "us-east-1"))
 
+ses = boto3.client("ses", region_name=AWS_REGION)
 
-REQUIRED_FIELDS = ["name", "email", "message"]
-EMAIL_REGEXP = r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)"
-
-
-@app.after_request
-def after_request(response):
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
-    response.headers.add("Access-Control-Allow-Methods", "OPTIONS,POST")
-    return response
+EMAIL_REGEXP = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 
 
-class InvalidUsage(Exception):
-    pass
+class ContactForm(BaseModel):
+    name: str
+    email: str
+    message: str
+
+    # Allow extra fields (e.g. "budget", "_important")
+    model_config = {"extra": "allow"}
+
+    @field_validator("name", "email", "message")
+    @classmethod
+    def must_not_be_blank(cls, v: str, info: object) -> str:
+        if not v.strip():
+            raise ValueError(f'The "{info.field_name}" field cannot be empty or spaces.')  # type: ignore[union-attr]
+        return v
+
+    @field_validator("email")
+    @classmethod
+    def must_be_valid_email(cls, v: str) -> str:
+        if not EMAIL_REGEXP.match(v):
+            raise ValueError('The "email" field needs to be a valid email address.')
+        return v
 
 
-@app.errorhandler(400)
-def handle_bad_request(error):
-    return jsonify({"status": "error", "error": str(error)}), 400
-
-
-@app.errorhandler(InvalidUsage)
-def handle_invalid_usage(error):
-    response = jsonify({"status": "error", "error": str(error)})
-    response.status_code = 400
-    return response
-
-
-@app.errorhandler(ClientError)
-def handle_client_error(error):
-    response = jsonify({"status": "error", "error": str(error)})
-    response.status_code = 500
-    return response
-
-
-@app.route("/", methods=["POST"])
-def index():
-    data = request.get_json(force=True)
-    if not data:
-        raise InvalidUsage("Request body cannot be empty.")
-
-    for field in REQUIRED_FIELDS:
-        value = data.get(field, None)
-        if value is None:
-            raise InvalidUsage('Request body needs a "{}" field.'.format(field))
-        if not value.strip():
-            raise InvalidUsage(
-                'The "{}" field cannot be empty or spaces.'.format(field)
-            )
-
-    if not re.match(EMAIL_REGEXP, data["email"]):
-        raise InvalidUsage('The "email" field needs to be a valid email address.')
-
-    if "_important" in data:
-        # Our code should have removed this field before POSTing.
-        # This is probably triggered by a bot.
-        return (jsonify({"status": "ok"}), 200)
-
-    # Create a string with those fields that we do not recognize
-    other_fields = set(data.keys()) - set(REQUIRED_FIELDS)
-    str_other_fields = "\n".join(
-        "<strong>{}</strong>: {}<br>".format(field, data[field])
-        for field in sorted(other_fields)
+@app.exception_handler(ClientError)
+async def ses_error_handler(request: Request, exc: ClientError) -> JSONResponse:
+    return JSONResponse(
+        status_code=500,
+        content={"status": "error", "error": str(exc)},
     )
 
-    subject = "Tryolabs contact form message from {} ({})".format(
-        data["name"], data["email"]
+
+@app.post("/")
+async def send_email(form: ContactForm) -> JSONResponse:
+    extra_fields = set(form.model_dump().keys()) - {"name", "email", "message"}
+
+    # Honeypot: if "_important" is present, a bot likely submitted the form
+    if "_important" in extra_fields:
+        return JSONResponse(content={"status": "ok"}, status_code=200)
+
+    other_fields_html = "\n".join(
+        f"<strong>{field}</strong>: {form.model_dump()[field]}<br>"
+        for field in sorted(extra_fields)
     )
-    message = """<strong>name</strong>: {}<br>
-<strong>email</strong>: {}<br>
-{}
+
+    subject = f"Tryolabs contact form message from {form.name} ({form.email})"
+    message_html = f"""<strong>name</strong>: {form.name}<br>
+<strong>email</strong>: {form.email}<br>
+{other_fields_html}
 <p>
-{}
+{form.message.replace(chr(10), "<br>")}
 </p>
-""".format(
-        data["name"],
-        data["email"],
-        str_other_fields,
-        data["message"].replace("\n", "<br>"),
-    )
+"""
 
     response = ses.send_email(
         Source=FROM_EMAIL,
-        Destination={
-            "ToAddresses": [DESTINATION_EMAIL],
-        },
+        Destination={"ToAddresses": [DESTINATION_EMAIL]},
         Message={
             "Subject": {"Data": subject, "Charset": "utf-8"},
-            "Body": {"Html": {"Data": message, "Charset": "utf-8"}},
+            "Body": {"Html": {"Data": message_html, "Charset": "utf-8"}},
         },
-        ReplyToAddresses=[data["email"]],
+        ReplyToAddresses=[form.email],
         ReturnPath=FROM_EMAIL,
     )
 
     if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "error": "SES responded with {}".format(
-                        response["ResponseMetadata"]["HTTPStatusCode"]
-                    ),
-                }
-            ),
-            500,
+        status_code = response["ResponseMetadata"]["HTTPStatusCode"]
+        return JSONResponse(
+            content={"status": "error", "error": f"SES responded with {status_code}"},
+            status_code=500,
         )
 
-    return jsonify({"status": "ok"}), 200
+    return JSONResponse(content={"status": "ok"}, status_code=200)
