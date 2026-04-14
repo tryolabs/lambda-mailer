@@ -1,20 +1,58 @@
-[tool.poetry]
+[project]
 name = "lambda-mailer"
-version = "0.1.0"
-description = "API to send emails using AWS lambda."
-license = "MIT"
-authors = ["Alan Descoins <alan@tryolabs.com>"]
+version = "1.0.0"
+description = "Serverless API to send emails via AWS Lambda + SES."
+license = { text = "MIT" }
+authors = [{ name = "Alan Descoins", email = "alan@tryolabs.com" }]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "mangum>=0.19,<1",
+    "boto3>=1.35,<2",
+]
 
-[tool.poetry.dependencies]
-python = "^3.8"
-boto3 = "^1.17.101"
-zappa = "^0.53.0"
-Flask = "1"
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "moto[ses]>=5,<6",
+    "httpx>=0.28,<1",
+    "ruff>=0.9,<1",
+    "mypy>=1.13,<2",
+    "boto3-stubs[ses]>=1.35,<2",
+    "ipdb>=0.13,<1",
+]
 
-[tool.poetry.dev-dependencies]
-ipdb = "^0.13.9"
-black = "^21.6b0"
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "N"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["mangum", "moto"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+only-include = ["api.py", "handler.py"]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "anyio>=4.13.0",
+    "pytest-anyio>=0.0.0",
+]
