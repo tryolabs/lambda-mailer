@@ -15,6 +15,10 @@ Parameters:
   DestinationEmail:
     Type: String
     Description: Email address to receive contact form submissions
+  FormSharedSecret:
+    Type: String
+    Description: Secret header value that Next.js sends with every legitimate request
+    NoEcho: true
 
 Globals:
   Function:
@@ -34,6 +38,7 @@ Resources:
         Variables:
           FROM_EMAIL: !Ref FromEmail
           DESTINATION_EMAIL: !Ref DestinationEmail
+          FORM_SHARED_SECRET: !Ref FormSharedSecret
       Policies:
         - Version: "2012-10-17"
           Statement:

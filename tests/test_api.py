@@ -31,6 +31,8 @@ async def client(patched_app):
         yield ac
 
 
+SECRET_HEADER = {"X-Form-Secret": "test-secret"}
+
 VALID_PAYLOAD = {
     "name": "Jane Doe",
     "email": "jane@example.com",
@@ -38,12 +40,27 @@ VALID_PAYLOAD = {
 }
 
 
+# --- Shared secret tests ---
+
+
+@pytest.mark.anyio
+async def test_missing_secret_returns_403(client):
+    resp = await client.post("/", json=VALID_PAYLOAD)
+    assert resp.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_wrong_secret_returns_403(client):
+    resp = await client.post("/", json=VALID_PAYLOAD, headers={"X-Form-Secret": "wrong"})
+    assert resp.status_code == 403
+
+
 # --- Validation tests ---
 
 
 @pytest.mark.anyio
 async def test_valid_request(client):
-    resp = await client.post("/", json=VALID_PAYLOAD)
+    resp = await client.post("/", json=VALID_PAYLOAD, headers=SECRET_HEADER)
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 
@@ -51,55 +68,57 @@ async def test_valid_request(client):
 @pytest.mark.anyio
 async def test_missing_name(client):
     payload = {"email": "a@b.com", "message": "hi"}
-    resp = await client.post("/", json=payload)
+    resp = await client.post("/", json=payload, headers=SECRET_HEADER)
     assert resp.status_code == 422
 
 
 @pytest.mark.anyio
 async def test_missing_email(client):
     payload = {"name": "Jane", "message": "hi"}
-    resp = await client.post("/", json=payload)
+    resp = await client.post("/", json=payload, headers=SECRET_HEADER)
     assert resp.status_code == 422
 
 
 @pytest.mark.anyio
 async def test_missing_message(client):
     payload = {"name": "Jane", "email": "a@b.com"}
-    resp = await client.post("/", json=payload)
+    resp = await client.post("/", json=payload, headers=SECRET_HEADER)
     assert resp.status_code == 422
 
 
 @pytest.mark.anyio
 async def test_empty_name(client):
     payload = {"name": "   ", "email": "a@b.com", "message": "hi"}
-    resp = await client.post("/", json=payload)
+    resp = await client.post("/", json=payload, headers=SECRET_HEADER)
     assert resp.status_code == 422
 
 
 @pytest.mark.anyio
 async def test_empty_email(client):
     payload = {"name": "Jane", "email": "   ", "message": "hi"}
-    resp = await client.post("/", json=payload)
+    resp = await client.post("/", json=payload, headers=SECRET_HEADER)
     assert resp.status_code == 422
 
 
 @pytest.mark.anyio
 async def test_empty_message(client):
     payload = {"name": "Jane", "email": "a@b.com", "message": "   "}
-    resp = await client.post("/", json=payload)
+    resp = await client.post("/", json=payload, headers=SECRET_HEADER)
     assert resp.status_code == 422
 
 
 @pytest.mark.anyio
 async def test_invalid_email_format(client):
     payload = {"name": "Jane", "email": "not-an-email", "message": "hi"}
-    resp = await client.post("/", json=payload)
+    resp = await client.post("/", json=payload, headers=SECRET_HEADER)
     assert resp.status_code == 422
 
 
 @pytest.mark.anyio
 async def test_empty_body(client):
-    resp = await client.post("/", content=b"", headers={"content-type": "application/json"})
+    resp = await client.post(
+        "/", content=b"", headers={"content-type": "application/json", **SECRET_HEADER}
+    )
     assert resp.status_code == 422
 
 
@@ -109,7 +128,7 @@ async def test_empty_body(client):
 @pytest.mark.anyio
 async def test_honeypot_field_returns_ok_without_sending(client):
     payload = {**VALID_PAYLOAD, "_important": "gotcha"}
-    resp = await client.post("/", json=payload)
+    resp = await client.post("/", json=payload, headers=SECRET_HEADER)
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 
@@ -120,7 +139,7 @@ async def test_honeypot_field_returns_ok_without_sending(client):
 @pytest.mark.anyio
 async def test_extra_fields_accepted(client):
     payload = {**VALID_PAYLOAD, "budget": "75-100k", "company": "Acme"}
-    resp = await client.post("/", json=payload)
+    resp = await client.post("/", json=payload, headers=SECRET_HEADER)
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 
@@ -144,7 +163,9 @@ async def test_cors_preflight(client):
 
 @pytest.mark.anyio
 async def test_cors_header_on_post(client):
-    resp = await client.post("/", json=VALID_PAYLOAD, headers={"Origin": "https://tryolabs.com"})
+    resp = await client.post(
+        "/", json=VALID_PAYLOAD, headers={"Origin": "https://tryolabs.com", **SECRET_HEADER}
+    )
     assert resp.headers.get("access-control-allow-origin") == "*"
 
 

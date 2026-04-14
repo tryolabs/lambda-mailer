@@ -3,13 +3,14 @@ import re
 
 import boto3
 from botocore.exceptions import ClientError
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 
 FROM_EMAIL = os.environ["FROM_EMAIL"]
 DESTINATION_EMAIL = os.environ["DESTINATION_EMAIL"]
+FORM_SHARED_SECRET = os.environ.get("FORM_SHARED_SECRET")
 
 app = FastAPI(title="Lambda Mailer")
 
@@ -17,7 +18,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["OPTIONS", "POST"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "X-Form-Secret"],
 )
 
 AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", os.environ.get("AWS_REGION", "us-east-1"))
@@ -25,6 +26,17 @@ AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", os.environ.get("AWS_REGION", "
 ses = boto3.client("ses", region_name=AWS_REGION)
 
 EMAIL_REGEXP = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+
+
+async def verify_secret(x_form_secret: str | None = Header(default=None)) -> None:
+    """Reject requests that don't carry the correct shared secret header.
+
+    Bots POST directly to the Lambda URL and bypass all frontend validation.
+    Only the Next.js backend knows the secret, so direct bot traffic gets a 403.
+    Fails closed: if FORM_SHARED_SECRET is not configured, all requests are denied.
+    """
+    if not FORM_SHARED_SECRET or x_form_secret != FORM_SHARED_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 class ContactForm(BaseModel):
@@ -58,7 +70,7 @@ async def ses_error_handler(request: Request, exc: ClientError) -> JSONResponse:
     )
 
 
-@app.post("/")
+@app.post("/", dependencies=[Depends(verify_secret)])
 async def send_email(form: ContactForm) -> JSONResponse:
     extra_fields = set(form.model_dump().keys()) - {"name", "email", "message"}
 
